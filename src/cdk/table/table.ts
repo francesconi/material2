@@ -32,10 +32,11 @@ import {
   ViewContainerRef,
   ViewEncapsulation,
   Inject,
+  NgZone,
 } from '@angular/core';
 import {DOCUMENT} from '@angular/common';
 import {BehaviorSubject, Observable, of as observableOf, Subject, Subscription} from 'rxjs';
-import {takeUntil} from 'rxjs/operators';
+import {takeUntil, take, debounceTime} from 'rxjs/operators';
 import {CdkColumnDef} from './cell';
 import {
   BaseRowDef,
@@ -381,7 +382,8 @@ export class CdkTable<T> implements AfterContentChecked, CollectionViewer, OnDes
                *    be made into a required parameters.
                */
               @Inject(DOCUMENT) _document?: any,
-              private _platform?: Platform) {
+              private _platform?: Platform,
+              private _ngZone: NgZone) {
     if (!role) {
       this._elementRef.nativeElement.setAttribute('role', 'grid');
     }
@@ -440,14 +442,16 @@ export class CdkTable<T> implements AfterContentChecked, CollectionViewer, OnDes
   }
 
   ngOnDestroy() {
-    this._rowOutlet.viewContainer.clear();
-    this._headerRowOutlet.viewContainer.clear();
-    this._footerRowOutlet.viewContainer.clear();
-
-    this._cachedRenderRowsMap.clear();
-
-    this._onDestroy.next();
-    this._onDestroy.complete();
+    this._ngZone.onStable.pipe(debounceTime(1000), take(1)).subscribe(() => {
+      this._rowOutlet.viewContainer.clear();
+      this._headerRowOutlet.viewContainer.clear();
+      this._footerRowOutlet.viewContainer.clear();
+  
+      this._cachedRenderRowsMap.clear();
+  
+      this._onDestroy.next();
+      this._onDestroy.complete();
+    });
 
     if (this.dataSource instanceof DataSource) {
       this.dataSource.disconnect(this);
